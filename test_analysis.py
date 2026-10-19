@@ -158,6 +158,61 @@ def test_analyze_malformed_response(client, created_incident):
 
 
 # ---------------------------------------------------------------------------
+# Regression test — ID round-trip (guards against the multi-worker storage bug)
+# ---------------------------------------------------------------------------
+
+def test_create_then_analyze_uses_returned_id(client):
+    """An incident's returned ID must work for analysis without a 404.
+
+    Regression guard: with multiple gunicorn workers, each worker holds its own
+    in-memory incidents list. An incident created on worker A is not visible to
+    worker B, so analyze returns 404. The fix is --workers 1 in gunicorn.
+
+    In this test the Flask test client is single-process, so the round-trip
+    always works — confirming the application logic itself is correct and that
+    the ID returned by POST /api/incidents is the exact key used by the analyze
+    endpoint.
+    """
+    # Step 1: create an incident and capture the ID the API returns.
+    create_resp = client.post(
+        "/api/incidents",
+        json={
+            "incident_type": "http_500",
+            "description": "Checkout service returning 500 errors.",
+            "severity": "high",
+        },
+    )
+    assert create_resp.status_code == 201
+    returned_id = create_resp.get_json()["id"]
+    assert returned_id  # must be a non-empty string
+
+    # Step 2: confirm the incident appears in the list with the same ID.
+    list_resp = client.get("/api/incidents")
+    assert list_resp.status_code == 200
+    ids_in_list = [i["id"] for i in list_resp.get_json()["incidents"]]
+    assert returned_id in ids_in_list, (
+        f"ID {returned_id!r} from POST not found in GET /api/incidents response"
+    )
+
+    # Step 3: analyze using the returned ID — must not return 404.
+    mock_analysis = {
+        "summary": "500 errors on checkout.",
+        "likely_cause": "Database overload.",
+        "evidence": ["high error rate"],
+        "recommendations": ["restart service"],
+    }
+    with patch("app.analyze_incident", return_value=mock_analysis):
+        analyze_resp = client.post(f"/api/incidents/{returned_id}/analyze")
+
+    assert analyze_resp.status_code == 200, (
+        f"Expected 200, got {analyze_resp.status_code}: "
+        f"{analyze_resp.get_json()}"
+    )
+    data = analyze_resp.get_json()
+    assert data["incident_id"] == returned_id
+
+
+# ---------------------------------------------------------------------------
 # Ollama client — response parsing unit tests
 # ---------------------------------------------------------------------------
 

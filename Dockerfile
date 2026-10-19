@@ -34,4 +34,8 @@ USER appuser
 EXPOSE 5000
 
 # Use gunicorn for production serving.
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 2 --timeout 60 app:app"]
+# Use a single worker because the app stores incidents in process-local memory.
+# Multiple workers would each have their own independent copy of the incidents
+# list, causing "incident not found" errors when a request lands on a different
+# worker than the one that created the incident.
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 1 --timeout 60 app:app"]
