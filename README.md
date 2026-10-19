@@ -36,24 +36,29 @@ graph TD
     G -->|summary, cause, evidence, recs| B
     B -->|JSON / HTML| A
 
+    subgraph Docker
+        I[Dockerfile] --> J[python:3.12-slim]
+        J --> K[Non-root user + gunicorn]
+    end
+
     subgraph CI/CD
-        I[GitHub Push / PR] --> J[GitHub Actions]
-        J -->|pytest| K[Test Suite]
-        J -->|Trivy FS scan| L[Security Scan]
-        L -->|SARIF| M[GitHub Security Tab]
+        L[GitHub Push / PR] --> M[GitHub Actions]
+        M -->|pytest| N[Test Suite]
+        M -->|Trivy FS scan| O[Security Scan]
+        O -->|SARIF| P[GitHub Security Tab]
     end
 
     subgraph Kubernetes
-        N[Helm Chart] --> O[Deployment]
-        O --> P[Pod: Flask + gunicorn]
-        P --> Q[Service ClusterIP]
-        N --> R[ServiceAccount]
-        N --> S[Health Probes]
+        Q[Helm Chart] --> R[Deployment]
+        R --> S[Pod: Flask + gunicorn]
+        S --> T[Service ClusterIP]
+        Q --> U[ServiceAccount]
+        Q --> V[Health Probes]
     end
 
     subgraph GitOps
-        T[Git Repository main] -->|Argo CD Application| U[Argo CD]
-        U -->|Sync + Self-Heal| N
+        W[Git Repository main] -->|Argo CD Application| X[Argo CD]
+        X -->|Sync + Self-Heal| Q
     end
 ```
 
@@ -117,9 +122,38 @@ curl -X POST http://localhost:5000/api/incidents \
 curl -X POST http://localhost:5000/api/incidents/<incident_id>/analyze
 ```
 
-## Configuration
+## Docker
 
-The application reads configuration from environment variables:
+### Build and Run
+
+The Dockerfile uses `python:3.12-slim`, runs as a non-root user, and serves
+with gunicorn (2 workers).
+
+```bash
+# Build the image (tag it with your own registry path)
+docker build -t ai-devops-incident-intelligence .
+
+# Run the container, forwarding port 5000
+docker run -p 5000:5000 \
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+  ai-devops-incident-intelligence
+```
+
+### Reaching Ollama from Docker
+
+When running inside Docker, `localhost` refers to the container itself, not
+the host machine. Use one of the following to let the container reach Ollama:
+
+| Platform | OLLAMA_BASE_URL | Notes |
+|----------|----------------|-------|
+| Docker Desktop (Mac/Windows) | `http://host.docker.internal:11434` | Built-in DNS alias for the host |
+| Linux | `http://<host-ip>:11434` | Use the host's LAN IP, or `--network host` |
+| Docker Compose | `http://ollama:11434` | If Ollama runs as a Compose service |
+
+## Ollama Configuration
+
+The application needs a running Ollama instance to generate AI analysis.
+Configure it with environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -127,19 +161,9 @@ The application reads configuration from environment variables:
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API base URL |
 | `OLLAMA_MODEL` | `llama3.2:latest` | Ollama model name |
 
-## Docker
-
-### Build and Run
-
-```bash
-docker build -t ai-devops-incident-intelligence .
-docker run -p 5000:5000 \
-  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
-  ai-devops-incident-intelligence
-```
-
-The Dockerfile uses `python:3.12-slim`, runs as a non-root user, and serves
-with gunicorn (2 workers).
+When running locally, the default works if Ollama is installed on the same
+machine. When running in Docker or Kubernetes, set `OLLAMA_BASE_URL` to the
+address the container can use to reach the Ollama service.
 
 ## Kubernetes Deployment with Helm
 
@@ -148,15 +172,25 @@ with gunicorn (2 workers).
 - A running Kubernetes cluster (e.g. [kind](https://kind.sigs.k8s.io/),
   minikube, or a cloud provider)
 - Helm 3.x installed
-- A container image pushed to a registry accessible from the cluster
+- **A container image built and pushed to a registry your cluster can reach.**
+  The Helm chart does not build the image for you. Build it from the Dockerfile
+  and push it to your own registry:
+
+  ```bash
+  # Build and push — replace with your actual registry path
+  docker build -t YOUR_REGISTRY/ai-devops-incident-intelligence:YOUR_TAG .
+  docker push YOUR_REGISTRY/ai-devops-incident-intelligence:YOUR_TAG
+  ```
+
+  Then pass your repository and tag to Helm (see below).
 
 ### Deploy
 
 ```bash
-# Install the chart
+# Install the chart — set image.repository and image.tag to the image you pushed
 helm install incident-intelligence ./helm/ai-devops-incident-intelligence \
-  --set image.repository=ghcr.io/your-org/ai-devops-incident-intelligence \
-  --set image.tag=1.0.0 \
+  --set image.repository=YOUR_REGISTRY/ai-devops-incident-intelligence \
+  --set image.tag=YOUR_TAG \
   --set env.OLLAMA_BASE_URL=http://ollama-service:11434
 
 # Verify the deployment
@@ -172,8 +206,8 @@ Key values can be overridden with `--set` or a custom values file:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `image.repository` | `ghcr.io/your-org/ai-devops-incident-intelligence` | Container image repository |
-| `image.tag` | `1.0.0` | Container image tag |
+| `image.repository` | _(none — required)_ | Container image repository (build and push your own) |
+| `image.tag` | _(none — required)_ | Container image tag |
 | `replicaCount` | `1` | Number of pod replicas |
 | `service.type` | `ClusterIP` | Kubernetes Service type |
 | `service.port` | `80` | Service port |
@@ -230,6 +264,14 @@ argocd app get ai-devops-incident-intelligence
 ```
 
 See [docs/gitops.md](docs/gitops.md) for the full GitOps workflow guide.
+
+## Security Note
+
+AI-generated analysis — summaries, likely causes, and recommendations — is
+**advisory only**. It is produced by a local language model and may be
+inaccurate or incomplete. Always review the output before taking any action
+in production. Never execute commands suggested by the model without first
+verifying them independently.
 
 ## Project Structure
 
