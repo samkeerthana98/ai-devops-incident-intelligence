@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Test and coverage reports
+.coverage
+htmlcov/
+
+# Local application data and logs
+*.log
+data/
+
+# Build and distribution artifacts
+dist/
+build/
+*.egg
+*.egg-info/
+
+# IDE and editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
