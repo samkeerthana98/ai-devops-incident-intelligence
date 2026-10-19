@@ -42,6 +42,14 @@ jobs:
     # Run in parallel with tests; both must pass for the workflow to succeed.
     needs: []
 
+    # Permissions required for SARIF upload to GitHub Security tab.
+    # Forked PRs without these permissions will skip the upload step but
+    # the Trivy scan itself still runs.
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -65,7 +73,10 @@ jobs:
 
       - name: Upload Trivy SARIF results
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        # Skip SARIF upload for pull requests from forks where the
+        # security-events: write permission is not granted. The Trivy
+        # scan itself still runs and the table summary is printed below.
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         with:
           sarif_file: trivy-results.sarif
           category: trivy
