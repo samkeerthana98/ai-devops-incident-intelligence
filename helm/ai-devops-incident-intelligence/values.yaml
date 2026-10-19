@@ -4,9 +4,16 @@
 # ---------------------------------------------------------------------------
 # Image
 # ---------------------------------------------------------------------------
+# image.repository and image.tag are required — the chart does not ship a
+# default image. Build the image from the Dockerfile, push it to your own
+# registry, and pass the values at install time:
+#
+#   helm install incident-intelligence ./helm/ai-devops-incident-intelligence \
+#     --set image.repository=YOUR_REGISTRY/ai-devops-incident-intelligence \
+#     --set image.tag=YOUR_TAG
 image:
-  repository: ghcr.io/your-org/ai-devops-incident-intelligence
-  tag: "1.0.0"
+  repository: ""
+  tag: ""
   pullPolicy: IfNotPresent
 
 # Optional image pull secrets for private registries.
