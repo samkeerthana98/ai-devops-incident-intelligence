@@ -30,3 +30,9 @@ build/
 .idea/
 *.swp
 *.swo
+
+# Helm chart generated artifacts
+helm/*/charts/
+helm/*/tmp/
+helm/*/values.schema.json
+

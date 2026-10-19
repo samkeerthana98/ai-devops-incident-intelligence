@@ -1,0 +1,52 @@
+# Virtual environments
+.venv/
+venv/
+
+# Git
+.git/
+.gitignore
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Test and coverage
+.coverage
+htmlcov/
+test_app.py
+test_analysis.py
+test_dashboard.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
+*.egg
+
+# Local data and logs
+*.log
+data/
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Documentation
+*.md
+!runbooks/*.md
+
+# OS files
+.DS_Store
+Thumbs.db

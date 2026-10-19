@@ -1,0 +1,119 @@
+# Default values for ai-devops-incident-intelligence.
+# Override these with -f myvalues.yaml or --set key=value.
+
+# ---------------------------------------------------------------------------
+# Image
+# ---------------------------------------------------------------------------
+image:
+  repository: ghcr.io/your-org/ai-devops-incident-intelligence
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+# Optional image pull secrets for private registries.
+imagePullSecrets: []
+
+# ---------------------------------------------------------------------------
+# Deployment
+# ---------------------------------------------------------------------------
+replicaCount: 1
+
+# Pod-level annotations (e.g. for Prometheus scraping).
+podAnnotations: {}
+
+# Pod-level labels (added on top of chart labels).
+podLabels: {}
+
+# ---------------------------------------------------------------------------
+# Service
+# ---------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 80
+  # Port the container listens on. Must match PORT env var below.
+  targetPort: 5000
+
+# ---------------------------------------------------------------------------
+# Application configuration
+# ---------------------------------------------------------------------------
+env:
+  # Port the Flask/gunicorn server listens on inside the container.
+  PORT: "5000"
+  # Ollama integration — override to point at a running Ollama service.
+  OLLAMA_BASE_URL: "http://localhost:11434"
+  OLLAMA_MODEL: "llama3.2:latest"
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    # Flask + gunicorn with 2 workers is lightweight; cap at 500m/256Mi.
+    cpu: 500m
+    memory: 256Mi
+
+# ---------------------------------------------------------------------------
+# Probes
+# ---------------------------------------------------------------------------
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 15
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  failureThreshold: 3
+
+# ---------------------------------------------------------------------------
+# Security
+# ---------------------------------------------------------------------------
+# Pod-level security context.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Container-level security context.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+      - ALL
+
+# ---------------------------------------------------------------------------
+# Autoscaling (disabled by default)
+# ---------------------------------------------------------------------------
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+# ---------------------------------------------------------------------------
+# Node scheduling
+# ---------------------------------------------------------------------------
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ---------------------------------------------------------------------------
+# Service account
+# ---------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""

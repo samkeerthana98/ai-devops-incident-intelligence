@@ -1,0 +1,81 @@
+# GitHub Actions CI workflow
+# Runs on every push and pull request.
+# Steps: install dependencies, run the full pytest suite, Trivy filesystem scan.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pytest
+        run: pytest test_app.py test_analysis.py test_dashboard.py -v --tb=short
+
+  trivy:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    # Run in parallel with tests; both must pass for the workflow to succeed.
+    needs: []
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          # Report HIGH and CRITICAL severity vulnerabilities, secrets, and
+          # misconfigurations. Do not fail on fixable-only findings.
+          severity: HIGH,CRITICAL
+          scanners: vuln,secret,misconfig
+          # Produce SARIF output for GitHub Security tab integration.
+          format: sarif
+          output: trivy-results.sarif
+          # Do not block CI on findings; findings are reported but not fatal.
+          # Change to 'true' once the baseline is clean.
+          exit-code: "0"
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+      - name: Print Trivy summary (table)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          scanners: vuln,secret,misconfig
+          format: table
+          ignore-unfixed: true

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI DevOps Incident Intelligence</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+  <header>
+    <h1>AI DevOps Incident Intelligence</h1>
+    <p>Simulated DevOps incident reporting and AI analysis</p>
+  </header>
+
+  <main>
+    <!-- Create Incident Section -->
+    <section id="create-section" class="card">
+      <h2>Report New Incident</h2>
+      <form id="incident-form">
+        <div class="form-group">
+          <label for="incident_type">Incident Type</label>
+          <select id="incident_type" name="incident_type" required>
+            <option value="http_500">HTTP 500</option>
+            <option value="high_latency">High Latency</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="severity">Severity</label>
+          <select id="severity" name="severity">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="3"
+                    placeholder="Describe the incident..." required></textarea>
+        </div>
+
+        <button type="submit" id="create-btn">Create Incident</button>
+      </form>
+      <div id="create-error" class="error-message" hidden></div>
+      <div id="create-success" class="success-message" hidden></div>
+    </section>
+
+    <!-- Incident List Section -->
+    <section id="incidents-section" class="card">
+      <h2>Recorded Incidents (<span id="incident-count">{{ incidents | length }}</span>)</h2>
+      <div id="incidents-list">
+        {% if incidents %}
+          {% for incident in incidents %}
+          <div class="incident-item">
+            <div class="incident-info">
+              <span class="type">{{ incident.incident_type }}</span>
+              <span class="severity-badge severity-{{ incident.severity }}">{{ incident.severity }}</span>
+              <p class="desc">{{ incident.description }}</p>
+              <p class="meta">ID: {{ incident.id }} | Created: {{ incident.created_at }}</p>
+            </div>
+            <button class="analyze-btn" data-incident-id="{{ incident.id }}">Analyze</button>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p id="no-incidents" class="empty-state">No incidents recorded yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- Analysis Section -->
+    <section id="analysis-section" class="card" hidden>
+      <h2>AI Analysis</h2>
+      <button id="close-analysis" class="secondary-btn">Close</button>
+
+      <div id="analysis-content">
+        <div class="analysis-field">
+          <h3>Summary</h3>
+          <p id="analysis-summary"></p>
+        </div>
+        <div class="analysis-field">
+          <h3>Likely Cause</h3>
+          <p id="analysis-likely-cause"></p>
+        </div>
+        <div class="analysis-field">
+          <h3>Evidence</h3>
+          <ul id="analysis-evidence"></ul>
+        </div>
+        <div class="analysis-field">
+          <h3>Recommendations</h3>
+          <ul id="analysis-recommendations"></ul>
+        </div>
+        <div class="analysis-field">
+          <h3>Runbook Sources</h3>
+          <p id="analysis-runbook-sources"></p>
+        </div>
+      </div>
+      <div id="analysis-error" class="error-message" hidden></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>AI DevOps Incident Intelligence — Phase 3 Dashboard</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

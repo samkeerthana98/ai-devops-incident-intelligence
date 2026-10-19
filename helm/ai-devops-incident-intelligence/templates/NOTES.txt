@@ -1,0 +1,29 @@
+1. Get the application URL:
+
+{{- if eq .Values.service.type "NodePort" }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "ai-devops-incident-intelligence.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "Application URL: http://$NODE_IP:$NODE_PORT"
+
+{{- else if eq .Values.service.type "LoadBalancer" }}
+  It may take a few minutes for the LoadBalancer IP to become available.
+  Watch the status with:
+    kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "ai-devops-incident-intelligence.fullname" . }}
+  Once available:
+    export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "ai-devops-incident-intelligence.fullname" . }} --template "{{"{{range (index .status.loadBalancer.ingress 0)}}{{.}}{{end}}"}}")
+    echo "Application URL: http://$SERVICE_IP:{{ .Values.service.port }}"
+
+{{- else }}
+  # ClusterIP — use port-forward for local access:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "ai-devops-incident-intelligence.fullname" . }} 5000:{{ .Values.service.port }}
+  echo "Application URL: http://127.0.0.1:5000"
+{{- end }}
+
+2. Check pod health:
+   kubectl get pods --namespace {{ .Release.Namespace }} -l "{{ include "ai-devops-incident-intelligence.selectorLabels" . }}"
+
+3. View logs:
+   kubectl logs --namespace {{ .Release.Namespace }} -l "{{ include "ai-devops-incident-intelligence.selectorLabels" . }}" --tail=50
+
+4. Dashboard:
+   Open http://127.0.0.1:5000/dashboard in your browser after port-forwarding.

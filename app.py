@@ -1,17 +1,22 @@
 """Minimal Flask application for simulated DevOps incident reporting.
 
 Endpoints:
-    GET  /               - service information
-    GET  /health         - JSON health status
-    GET  /api/incidents  - list recorded incidents
-    POST /api/incidents  - validate and record a simulated incident
+    GET  /                                  - service information
+    GET  /health                            - JSON health status
+    GET  /api/incidents                     - list recorded incidents
+    POST /api/incidents                     - validate and record a simulated incident
+    POST /api/incidents/<incident_id>/analyze - AI analysis of a recorded incident
 """
 
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
+
+from ollama_client import OllamaError, analyze_incident
+from retrieval import retrieve_runbooks
 
 # ---------------------------------------------------------------------------
 # Application setup
@@ -58,6 +63,8 @@ def index():
                 "GET /health",
                 "GET /api/incidents",
                 "POST /api/incidents",
+                "POST /api/incidents/<incident_id>/analyze",
+                "GET /dashboard",
             ],
         }
     )
@@ -139,5 +146,78 @@ def create_incident():
     return jsonify(incident), 201
 
 
+# ---------------------------------------------------------------------------
+# Incident analysis
+# ---------------------------------------------------------------------------
+
+@app.route("/api/incidents/<incident_id>/analyze", methods=["POST"])
+def analyze_incident_endpoint(incident_id: str):
+    """Analyze a recorded incident using AI with runbook retrieval.
+
+    Steps:
+        1. Find the incident by ID.
+        2. Retrieve the most relevant runbook.
+        3. Request AI analysis from Ollama.
+        4. Return structured JSON with analysis and runbook sources.
+
+    The model's output is advisory only — no commands are executed.
+    """
+    # --- find incident ----------------------------------------------------
+    incident = next((i for i in incidents if i["id"] == incident_id), None)
+    if incident is None:
+        logger.warning("Analyze: incident not found id=%s", incident_id)
+        return _error_response(f"Incident '{incident_id}' not found.", 404)
+
+    # --- retrieve runbooks ------------------------------------------------
+    runbooks = retrieve_runbooks(
+        incident_type=incident["incident_type"],
+        description=incident["description"],
+    )
+
+    if runbooks:
+        runbook_text = runbooks[0]["content"]
+        runbook_sources = [rb["name"] for rb in runbooks]
+    else:
+        runbook_text = "No runbook available for this incident type."
+        runbook_sources = []
+
+    logger.info(
+        "Analyze: incident_id=%s runbook_sources=%s",
+        incident_id,
+        runbook_sources,
+    )
+
+    # --- request AI analysis ----------------------------------------------
+    try:
+        analysis = analyze_incident(incident, runbook_text)
+    except OllamaError as exc:
+        logger.error("Analyze: Ollama error for incident_id=%s: %s", incident_id, exc)
+        return _error_response(str(exc), 503)
+
+    # --- build response ---------------------------------------------------
+    response = {
+        "incident_id": incident_id,
+        "summary": analysis.get("summary", ""),
+        "likely_cause": analysis.get("likely_cause", ""),
+        "evidence": analysis.get("evidence", []),
+        "recommendations": analysis.get("recommendations", []),
+        "runbook_sources": runbook_sources,
+    }
+
+    return jsonify(response), 200
+
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+
+@app.route("/dashboard", methods=["GET"])
+def dashboard():
+    """Render the HTML dashboard with the current incident list."""
+    logger.info("Rendering dashboard (incident_count=%d)", len(incidents))
+    return render_template("dashboard.html", incidents=incidents)
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)

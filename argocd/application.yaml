@@ -1,0 +1,52 @@
+# Argo CD Application manifest for AI DevOps Incident Intelligence.
+#
+# Deploys the Helm chart from this repository using GitOps.
+# Apply with: kubectl apply -f argocd/application.yaml
+#
+# Prerequisites:
+#   - Argo CD installed in the cluster
+#   - This repository registered as an Argo CD repository
+#     (argocd repo add https://github.com/samkeerthana98/ai-devops-incident-intelligence.git)
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ai-devops-incident-intelligence
+  # Argo CD Application CRD must be in a namespace where Argo CD can see it.
+  # Use the argocd namespace so it is always visible to the controller.
+  namespace: argocd
+  # Finalizer ensures Argo CD cleans up resources when the Application is deleted.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/samkeerthana98/ai-devops-incident-intelligence.git
+    targetRevision: main
+    # Path to the Helm chart inside the repository.
+    chart: helm/ai-devops-incident-intelligence
+
+    # Helm values overrides — use the chart's defaults but set the Ollama URL
+    # to point at a cluster-local service if one exists.
+    helm:
+      values: |
+        env:
+          OLLAMA_BASE_URL: "http://ollama-service:11434"
+
+  destination:
+    # The cluster and namespace to deploy into.
+    server: https://kubernetes.default.svc
+    namespace: ai-devops
+
+  syncPolicy:
+    # Automated sync keeps the application in sync with the Git source.
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # Create the destination namespace if it does not exist.
+      - CreateNamespace=true
+      # Apply mutations server-side so Argo CD can handle fields it does not
+      # manage (e.g. default values injected by admission webhooks).
+      - ServerSideApply=true
